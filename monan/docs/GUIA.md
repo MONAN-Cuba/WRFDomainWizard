@@ -82,4 +82,7 @@ python3 tests/test_meshlib.py      # equivalencia con la versión anterior, form
 | `ModuleNotFoundError: mpas_tools` en el panel de construcción | El servidor no corre en el entorno con JIGSAW | `conda activate mpasmesh` antes de `mesh_server.py` |
 | `No encuentro .../create_region` | Falta MPAS-Limited-Area | `--limited-area RUTA` (o variable `MPAS_LIMITED_AREA`) |
 | La vista previa no aparece | Configuración inválida (mensaje rojo) | Revisar `dx` del hijo, `ramp_km`, parámetros de la forma |
+| `HDF5-DIAG ... unable to lock file, errno = 11` al abrir un `.nc` | Otro proceso tiene el archivo abierto en escritura, o el sistema de archivos (disco externo NTFS/exFAT, red) no admite bloqueos | Cerrar el otro proceso (`lsof archivo.nc`) o `export HDF5_USE_FILE_LOCKING=FALSE` antes de arrancar el servidor |
+| La etapa `mesh` termina con "Killed" o `MemoryError` | Falta de RAM: JIGSAW mallea toda la esfera | Usar un nodo con más memoria o reducir el tamaño de la malla; ver "Mallas grandes" en `README.md` |
+| `gpmetis: command not found` | Falta METIS | `mamba install -c conda-forge metis`, `apt install metis` o `module load` |
 | Aviso "gradiente de espaciado alto" | Rampa demasiado corta | Alargar `ramp_km` (regla práctica: ~5× el `dx` del padre) |
