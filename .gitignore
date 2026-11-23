@@ -5,3 +5,7 @@ node_modules
 analytics.txt
 __pycache__
 test/*.html
+# mallas construidas y resultados locales
+monan/**/*.nc
+monan/**/*.graph.info*
+monan/**/*.bak_*
