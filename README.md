@@ -1,4 +1,6 @@
-# WRF Domain Wizard 
+# WRF Domain Wizard + constructor de mallas MONAN (fork MONAN-Cuba)
+
+> **Novedad en este fork:** la carpeta [`monan/`](monan/README.md) contiene un constructor interactivo de mallas MPAS para MONAN (resolución variable o constante, regional o global). El resto del repositorio es el WRF Domain Wizard original.
 
 The WRF Domain Wizard is implemented as a client-side SPA (Single-page application) and can be used to define model domains for the [WRF Preprocessing System (WPS)](https://www2.mmm.ucar.edu/wrf/users/wrf_users_guide/build/html/wps.html). WPS is a set of three programs whose collective role is to prepare input to the real program for real-data simulations. Each program reads parameters from a common namelist file - namelist.wps.
 

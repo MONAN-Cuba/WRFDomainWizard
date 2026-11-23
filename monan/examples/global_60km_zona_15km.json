@@ -1,0 +1,8 @@
+{
+ "name": "global_60_15",
+ "mode": "global",
+ "levels": [
+  {"name": "base", "dx": 60},
+  {"name": "zona", "dx": 15, "shape": "circle", "center": [22, -80], "radius_km": 500, "ramp_km": 300, "parent": 0}
+ ]
+}
