@@ -13,6 +13,10 @@ Carpeta `monan/` del fork WRFDomainWizard (rama `monan-mesh`). Reutiliza Leaflet
 
 El servidor escucha solo en 127.0.0.1. Necesita numpy, scipy, matplotlib y netCDF4; para construir, además `mpas_tools` (JIGSAW), MPAS-Limited-Area y `gpmetis` en el PATH (lo que ya usas con make_mpas_mesh.py). La vista previa no necesita nada más y los mapas base necesitan internet.
 
+## Modo solo diseño (GitHub Pages)
+
+La misma página funciona sin servidor: si no encuentra `mesh_server.py`, calcula la vista previa en el navegador (campo de dx, celdas estimadas, gradiente), permite dibujar, importar y exportar el JSON, y desactiva Construir. Con Pages activo en `main`, está en `https://monan-cuba.github.io/WRFDomainWizard/monan/`. La estimación local coincide con la del servidor dentro de ~1 % en los ejemplos; no aplica el suavizado. La construcción y la calidad real siguen necesitando el servidor local.
+
 ## Uso
 
 1. Elegir una plantilla, importar un JSON (p. ej. `examples/cuba_sispi.json`) o dibujar con las herramientas.

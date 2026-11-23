@@ -208,6 +208,7 @@ class H(BaseHTTPRequestHandler):
             if u.path == "/api/quality":
                 return self._json(json.load(open(os.path.join(mesh_dir(q["name"]), q["name"] + ".quality.json"))))
             if u.path == "/api/cells": return self._json(cells(q["name"], int(q.get("max", 40000))))
+            if os.path.isfile(os.path.join(WEB, u.path.lstrip("/"))): return self._static(WEB, u.path.lstrip("/"))   # rutas relativas de la pagina (app.js, lib/...)
             self._json({"error": "ruta desconocida"}, 404)
         except (KeyError, FileNotFoundError) as e:
             self._json({"error": str(e)}, 404)

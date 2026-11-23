@@ -18,7 +18,7 @@
       { name: 'zona', dx: 15, shape: 'circle', center: [22, -80], radius_km: 500, ramp_km: 300, parent: 0 }] }
   };
 
-  const S = { cfg: JSON.parse(JSON.stringify(TEMPLATES.cuba)), sel: 0, tool: '', seq: 0, timer: null, job: null, preview: null };
+  const S = { static: false, cfg: JSON.parse(JSON.stringify(TEMPLATES.cuba)), sel: 0, tool: '', seq: 0, timer: null, job: null, preview: null };
 
   /* ------------------------------------------------------------------ geometria (espejo de meshlib.py) */
   const cosd = (lat) => Math.cos(lat * Math.PI / 180);
@@ -317,6 +317,109 @@
     S.cfg.mode = m; S.sel = 0; fillLevels(); fillEditor(); redrawShapes(); changed();
   }
 
+
+  /* ------------------------------------------------------------------ calculo local (modo solo diseño, espejo de meshlib.py) */
+  const HEX = 0.866, EARTH_KM = 6371.229, VIRIDIS_R = ['#fde724', '#bdde26', '#79d151', '#44be70', '#22a784', '#208f8c', '#29788e', '#345e8d', '#404387', '#482374', '#440154'];
+  const mod = (a, n) => ((a % n) + n) % n;
+  const hex2rgb = (h) => [1, 3, 5].map((i) => parseInt(h.substr(i, 2), 16));
+
+  function validate(cfg) {
+    const L_ = cfg.levels; if (!L_.length) throw new Error('levels vacio');
+    L_.forEach((l, k) => {
+      if (!(l.dx > 0)) throw new Error('nivel ' + l.name + ': dx debe ser > 0');
+      if (k === 0 && cfg.mode === 'global') return;
+      if (l.shape === 'global') throw new Error('modo regional: el nivel 0 necesita forma');
+      const need = { rect: ['lat', 'lon'], stadium: ['lat', 'lon'], ellipse: ['center', 'semi_axes_km'], circle: ['center', 'radius_km'], polygon: ['points'] }[l.shape];
+      if (!need) throw new Error('nivel ' + l.name + ': forma desconocida ' + l.shape);
+      need.forEach((key) => { if (l[key] == null) throw new Error('nivel ' + l.name + ' (' + l.shape + '): falta ' + key); });
+      if (k >= 1) {
+        if (!(l.ramp_km > 0)) throw new Error('nivel ' + l.name + ': ramp_km debe ser > 0');
+        if (!(l.parent >= 0 && l.parent < k)) throw new Error('nivel ' + l.name + ': parent debe ser un nivel anterior');
+        if (l.dx > L_[l.parent].dx) throw new Error('nivel ' + l.name + ': dx (' + l.dx + ') mayor que el de su padre (' + L_[l.parent].dx + ')');
+      }
+    });
+  }
+
+  function distFn(lv) {
+    const sh = lv.shape;
+    if (sh === 'global') return () => 0;
+    if (sh === 'rect' || sh === 'stadium') {
+      const [la0, la1] = lv.lat, [lo0, lo1] = lv.lon, frac = lv.corner_radius_frac != null ? lv.corner_radius_frac : (sh === 'stadium' ? 1 : 0);
+      const clat = (la0 + la1) / 2, clon = (lo0 + lo1) / 2, c = cosd(clat), hy = (la1 - la0) / 2 * KM, hx = (lo1 - lo0) / 2 * KM * c, r = frac * Math.min(hx, hy);
+      return (la, lo) => { const y = Math.abs(la - clat) * KM, x = Math.abs(mod(lo - clon + 180, 360) - 180) * KM * c; return Math.max(Math.hypot(Math.max(x - (hx - r), 0), Math.max(y - (hy - r), 0)) - r, 0); };
+    }
+    if (sh === 'ellipse' || sh === 'circle') {
+      const c0 = lv.center, a = sh === 'circle' ? lv.radius_km : lv.semi_axes_km[0], b = sh === 'circle' ? lv.radius_km : lv.semi_axes_km[1], t = sh === 'ellipse' ? (lv.rotation_deg || 0) * Math.PI / 180 : 0;
+      const ct = Math.cos(t), st = Math.sin(t), c = cosd(c0[0]);
+      return (la, lo) => {
+        const x = mod(lo - c0[1] + 180, 360) - 180, X = x * KM * c, Y = (la - c0[0]) * KM, xr = X * ct + Y * st, yr = -X * st + Y * ct;
+        const f = Math.sqrt((xr / a) ** 2 + (yr / b) ** 2); if (f <= 1) return 0;
+        const g = Math.sqrt((xr / (a * a)) ** 2 + (yr / (b * b)) ** 2); return (f - 1) * f / Math.max(g, 1e-300);
+      };
+    }
+    // poligono: dentro = 0; fuera = distancia minima a las aristas (km, plano local)
+    const P = lv.points, clat = P.reduce((s, p) => s + p[0], 0) / P.length, clon = P.reduce((s, p) => s + p[1], 0) / P.length, c = cosd(clat);
+    const Q = P.map((p) => [(p[1] - clon) * KM * c, (p[0] - clat) * KM]);
+    return (la, lo) => {
+      if (inside([la, lo], P)) return 0;
+      const x = (lo - clon) * KM * c, y = (la - clat) * KM; let best = Infinity;
+      for (let i = 0; i < Q.length; i++) {
+        const [x1, y1] = Q[i], [x2, y2] = Q[(i + 1) % Q.length], dx = x2 - x1, dy = y2 - y1, L2 = dx * dx + dy * dy;
+        const t = L2 > 0 ? Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / L2)) : 0, d = Math.hypot(x - x1 - t * dx, y - y1 - t * dy); if (d < best) best = d;
+      }
+      return best;
+    };
+  }
+
+  function previewLocal(cfg, gdIn) {
+    const t0 = performance.now(); validate(cfg);
+    const L_ = cfg.levels, glob = cfg.mode === 'global', gd = gdIn || (glob ? 0.5 : 0.1);
+    let win = [-90, 90, -180, 180];
+    if (!glob) { const b = bounds(L_[0]), m = 2; win = [Math.max(-90, b[0] - m), Math.min(90, b[1] + m), Math.max(-180, b[2] - m), Math.min(180, b[3] + m)]; }
+    const i0 = Math.ceil((win[0] + 90) / gd - 1e-9), i1 = Math.floor((win[1] + 90) / gd + 1e-9), j0 = Math.ceil((win[2] + 180) / gd - 1e-9), j1 = Math.floor((win[3] + 180) / gd + 1e-9);
+    const ny = i1 - i0 + 1, nx = j1 - j0 + 1; if (ny < 2 || nx < 2) throw new Error('ventana vacia');
+    const lat = (i) => -90 + (i0 + i) * gd, lon = (j) => -180 + (j0 + j) * gd;
+    const D = L_.map((l) => { const f = distFn(l), a = new Float32Array(ny * nx); for (let i = 0; i < ny; i++) for (let j = 0; j < nx; j++) a[i * nx + j] = f(lat(i), lon(j)); return a; });
+    const w = new Float32Array(ny * nx).fill(L_[0].dx);
+    for (let k = 1; k < L_.length; k++) {
+      const l = L_[k], p = l.parent, dp = L_[p].dx, s = (dp - l.dx) / l.ramp_km;
+      for (let n = 0; n < w.length; n++) { const g = Math.min(dp, Math.max(l.dx, l.dx + s * D[k][n])); if (p === 0 || D[p][n] === 0) w[n] = Math.min(w[n], g); }
+    }
+    const cellsOf = (i, n) => { const A = Math.pow(gd * Math.PI / 180 * EARTH_KM, 2) * cosd(lat(i)); return A / (HEX * w[n] * w[n]); };
+    let total = 0, wmin = Infinity, wmaxIn = 0; const zones = L_.map((l) => ({ name: l.name, dx: l.dx, cells_inside: 0 }));
+    for (let i = 0; i < ny; i++) for (let j = 0; j < nx; j++) {
+      const n = i * nx + j; if (w[n] < wmin) wmin = w[n];
+      if (D[0][n] !== 0) continue;
+      const c = cellsOf(i, n); total += c; if (w[n] > wmaxIn) wmaxIn = w[n];
+      L_.forEach((l, k) => { if (D[k][n] === 0) zones[k].cells_inside += c; });
+    }
+    const dy = gd * KM, grads = [];
+    for (let i = 0; i < ny - 1; i++) for (let j = 0; j < nx - 1; j++) {
+      const n = i * nx + j; if (D[0][n] !== 0) continue;
+      grads.push(Math.max(Math.abs(w[n + nx] - w[n]) / dy, Math.abs(w[n + 1] - w[n]) / (dy * cosd(lat(i)))));
+    }
+    grads.sort((a, b) => a - b);
+    const gp = grads.length ? grads[Math.min(grads.length - 1, Math.floor(0.999 * (grads.length - 1)))] : 0, warn = [];
+    if (gp > 0.35) warn.push('gradiente de espaciado alto (' + gp.toFixed(2) + ' > 0.35): alguna rampa es muy corta; la malla puede salir de mala calidad');
+    if (cfg.smooth_km > 0) warn.push('modo solo diseño: el suavizado no se aplica en esta vista previa');
+    // imagen con remuestreo uniforme en y de Mercator
+    let vmin = Infinity, vmax = -Infinity; for (let n = 0; n < w.length; n++) { if (w[n] < vmin) vmin = w[n]; if (w[n] > vmax) vmax = w[n]; }
+    const my = (la) => Math.log(Math.tan(Math.PI / 4 + Math.max(-85.05, Math.min(85.05, la)) * Math.PI / 360)), minv = (y) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180 / Math.PI;
+    const lat0 = lat(0), lat1 = lat(ny - 1), H = Math.min(900, ny), cv = document.createElement('canvas'); cv.width = nx; cv.height = H;
+    const ctx = cv.getContext('2d'), img = ctx.createImageData(nx, H), stops = VIRIDIS_R.map(hex2rgb);
+    for (let r = 0; r < H; r++) {
+      const y = my(lat1) - (my(lat1) - my(lat0)) * r / (H - 1), ii = Math.max(0, Math.min(ny - 1, Math.round((minv(y) - lat0) / gd)));
+      for (let j = 0; j < nx; j++) {
+        const n = ii * nx + j, f = (w[n] - vmin) / Math.max(vmax - vmin, 1e-9) * 10, a = Math.min(9, Math.floor(f)), u = f - a, o = (r * nx + j) * 4;
+        for (let q = 0; q < 3; q++) img.data[o + q] = Math.round(stops[a][q] * (1 - u) + stops[a + 1][q] * u);
+        img.data[o + 3] = D[0][n] === 0 ? 190 : 60;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    return { summary: { cells_estimated: total, dx_min: wmin, dx_max_region: wmaxIn, dt_hint_s: 6 * wmin, grad_p999: gp, zones, warnings: warn },
+      image: cv.toDataURL('image/png'), bounds: [[lat0, lon(0)], [lat1, lon(nx - 1)]], vmin, vmax, colors: VIRIDIS_R.map((c, i) => [i / 10, c]), grid_deg: gd, seconds: Math.round((performance.now() - t0) / 10) / 100 };
+  }
+
   /* ------------------------------------------------------------------ vista previa */
   const api = (p, body) => fetch(p, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}).then((r) => r.json());
 
@@ -329,7 +432,9 @@
     if (!cfg.levels.length) { $('sum').innerHTML = '<span class="muted">Sin zonas.</span>'; if (overlay) { map.removeLayer(overlay); overlay = null; } return; }
     const gd = parseFloat($('f-gd').value);
     $('sum').style.opacity = 0.5;
-    api('/api/preview', { config: cfg, grid_deg: isNaN(gd) ? undefined : gd }).then((r) => {
+    const getPrev = S.static ? new Promise((res) => { try { res(previewLocal(cfg, isNaN(gd) ? undefined : gd)); } catch (e) { res({ error: String(e.message || e) }); } })
+      : api('api/preview', { config: cfg, grid_deg: isNaN(gd) ? undefined : gd });
+    getPrev.then((r) => {
       if (seq !== S.seq) return;
       $('sum').style.opacity = 1;
       if (r.error) { $('sum').innerHTML = '<div class="err">' + r.error + '</div>'; return; }
@@ -359,7 +464,7 @@
     const stages = [...document.querySelectorAll('.stg:checked')].map((x) => x.value).join(',');
     if (!stages) return;
     const cfg = cleanCfg(); $('log').textContent = 'lanzando…'; $('qual').innerHTML = '';
-    api('/api/build', { config: cfg, stages, nproc: $('f-nproc').value.trim() || undefined }).then((r) => {
+    api('api/build', { config: cfg, stages, nproc: $('f-nproc').value.trim() || undefined }).then((r) => {
       if (r.error) { $('log').textContent = 'ERROR: ' + r.error; return; }
       S.job = r.job; S.jobName = cfg.name; poll();
     });
@@ -367,7 +472,7 @@
 
   function poll() {
     if (!S.job) return;
-    api('/api/job/' + S.job).then((j) => {
+    api('api/job/' + S.job).then((j) => {
       if (j.error) { $('log').textContent = j.error; return; }
       const lg = $('log'), atEnd = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 5;
       lg.textContent = '[' + j.status + ' · ' + j.seconds + ' s]\n' + j.log.join('\n'); if (atEnd) lg.scrollTop = lg.scrollHeight;
@@ -377,7 +482,7 @@
   }
 
   function quality() {
-    api('/api/quality?name=' + encodeURIComponent(S.jobName)).then((q) => {
+    api('api/quality?name=' + encodeURIComponent(S.jobName)).then((q) => {
       if (q.error) return;
       const rows = [['celdas', q.cells], ['dx min / mediana / máx (km)', [q.dx_min_km, q.dx_median_km, q.dx_max_km].map((x) => x.toFixed(2)).join(' / ')], ['razón dx vecinas (máx / p99.9)', q.ratio_max.toFixed(2) + ' / ' + q.ratio_p999.toFixed(2)],
         ['celdas no hexagonales', (100 * q.frac_non_hex).toFixed(1) + ' %'], ['meshDensity mín', q.meshDensity_min != null ? q.meshDensity_min.toPrecision(3) : '—'], ['dt orientativo', Math.round(q.dt_hint_s) + ' s']];
@@ -388,7 +493,7 @@
 
   function showCells() {
     const name = S.jobName || $('f-name').value.trim();
-    api('/api/cells?name=' + encodeURIComponent(name) + '&max=30000').then((r) => {
+    api('api/cells?name=' + encodeURIComponent(name) + '&max=30000').then((r) => {
       if (r.error) { alert(r.error); return; }
       cellsG.clearLayers();
       const cv = L.canvas({ padding: 0.3 });
@@ -411,10 +516,14 @@
     a.href = URL.createObjectURL(new Blob([JSON.stringify(c, null, 1)], { type: 'application/json' })); a.download = (c.name || 'malla') + '.json'; a.click();
   };
   $('b-build').onclick = build;
-  $('b-stop').onclick = () => { if (S.job) api('/api/job/' + S.job + '/cancel', {}); };
+  $('b-stop').onclick = () => { if (S.job) api('api/job/' + S.job + '/cancel', {}); };
   $('b-cells').onclick = showCells; $('b-hide').onclick = () => cellsG.clearLayers();
-  api('/api/info').then((i) => { $('srvinfo').textContent = 'Carpeta de trabajo: ' + i.workdir; });
-
+  function setStatic() {
+    S.static = true; $('srvinfo').textContent = 'Sin servidor: modo solo diseño'; $('staticmsg').style.display = 'block';
+    ['b-build', 'b-stop', 'b-cells', 'b-hide'].forEach((id) => { $(id).disabled = true; });
+    $('log').textContent = 'La construcción necesita mesh_server.py en tu ordenador (ver README). Aquí puedes exportar el JSON.'; changed();
+  }
   drawStages(); loadCfg(TEMPLATES.cuba);
+  fetch('api/info').then((r) => r.json()).then((i) => { if (!i.workdir) throw new Error('sin servidor'); $('srvinfo').textContent = 'Carpeta de trabajo: ' + i.workdir; }).catch(setStatic);
   window.__S = S;                         // para depurar en la consola
 })();

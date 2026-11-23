@@ -55,6 +55,10 @@ Ver `README.md`. Resumen de la API local (solo 127.0.0.1): `POST /api/preview`, 
 
 Dibujo: rectángulo, elipse y círculo se arrastran en el mapa; el polígono se hace con clics y doble clic. Tiradores: rectángulo (4 esquinas + centro), círculo (centro + radio), elipse (centro, semieje `a` que también gira, semieje `b`), polígono (vértices; clic derecho borra). El primer nivel en modo regional es el recorte; los siguientes se asignan como hijos del nivel más fino que contenga su centro.
 
+## 3b. Modo solo diseño
+
+Sin `mesh_server.py` (p. ej. en GitHub Pages) la página calcula la vista previa en JavaScript: mismas formas, rampas y padres; mallado de 0.1° regional o 0.5° global; sin suavizado. Diferencia con el servidor ≤ 1 % en las celdas estimadas de los ejemplos. Construir, calidad y centros de celda reales requieren el servidor.
+
 ## 4. Pruebas
 
 ```bash

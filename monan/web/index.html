@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Constructor de mallas MONAN</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="/lib/leaflet.css">
+<link rel="stylesheet" href="lib/leaflet.css">
 <style>
   html,body{height:100%;margin:0;font:13px/1.35 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1d2733}
   #app{display:flex;height:100%}
@@ -41,6 +41,7 @@
  <div id="side">
   <h1>Constructor de mallas MONAN</h1>
   <div class="muted" id="srvinfo">conectando…</div>
+  <div class="warn" id="staticmsg" style="display:none"><b>Modo solo diseño</b> (sin servidor). Puedes dibujar zonas, ver el campo de dx y la estimación de celdas, e exportar el JSON. Para construir la malla o ver la calidad real, ejecuta <code>mesh_server.py</code> en tu ordenador.</div>
 
   <h2>Malla</h2>
   <div class="row"><div><label>Nombre</label><input id="f-name" value="mi_malla"></div>
@@ -76,7 +77,7 @@
  <div id="map"></div>
 </div>
 <div id="hint"></div><div id="coords"></div>
-<script src="/lib/leaflet.js"></script>
-<script src="/lib/leaflet-providers.js"></script>
-<script src="/web/app.js"></script>
+<script src="lib/leaflet.js"></script>
+<script src="lib/leaflet-providers.js"></script>
+<script src="app.js"></script>
 </body></html>
