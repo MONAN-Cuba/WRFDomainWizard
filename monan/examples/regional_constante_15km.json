@@ -1,0 +1,7 @@
+{
+ "name": "regional_15km",
+ "mode": "regional",
+ "levels": [
+  {"name": "dominio", "dx": 15, "shape": "rect", "lat": [10, 30], "lon": [-100, -60]}
+ ]
+}

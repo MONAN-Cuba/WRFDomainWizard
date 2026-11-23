@@ -1,0 +1,13 @@
+{
+ "name": "cuba_sispi",
+ "levels": [
+  {"name": "d01", "dx": 27, "lat": [13.52, 32.16], "lon": [-99.41, -62.70]},
+  {"name": "d02", "dx": 9,  "lat": [17.59, 26.64], "lon": [-88.32, -70.88]},
+  {"name": "d03", "dx": 3,  "lat": [19.26, 24.25], "lon": [-85.76, -73.70]}
+ ],
+ "ramp_km": [150, 50],
+ "smooth_km": 0,
+ "smooth_keep": "finest",
+ "corner_radius_frac": 0.0,
+ "grid_deg": 0.05
+}

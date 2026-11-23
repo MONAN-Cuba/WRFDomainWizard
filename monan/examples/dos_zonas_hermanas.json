@@ -1,0 +1,9 @@
+{
+ "name": "dos_zonas",
+ "mode": "regional",
+ "levels": [
+  {"name": "d01", "dx": 27, "shape": "rect", "lat": [5, 35], "lon": [-110, -50]},
+  {"name": "caribe", "dx": 9, "shape": "ellipse", "center": [20, -78], "semi_axes_km": [900, 450], "ramp_km": 150, "parent": 0},
+  {"name": "golfo", "dx": 9, "shape": "polygon", "points": [[30, -96], [30, -86], [24, -86], [24, -96]], "ramp_km": 150, "parent": 0}
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "name": "elipses",
+ "mode": "regional",
+ "grid_deg": 0.1,
+ "levels": [
+  {"name": "d01", "dx": 27, "shape": "ellipse", "center": [22, -80], "semi_axes_km": [2200, 1500], "rotation_deg": 10},
+  {"name": "d02", "dx": 9, "shape": "ellipse", "center": [22, -80], "semi_axes_km": [900, 500], "rotation_deg": 10, "ramp_km": 150, "parent": 0},
+  {"name": "d03", "dx": 3, "shape": "circle", "center": [22.5, -82], "radius_km": 250, "ramp_km": 50, "parent": 1}
+ ]
+}
